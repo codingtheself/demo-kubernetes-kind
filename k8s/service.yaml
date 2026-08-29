@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fibserver
+spec:
+  selector:
+    app: fibserver
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
