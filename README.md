@@ -180,22 +180,6 @@ kubectl delete -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/hpa.yaml
 kind delete cluster --name kind
 ```
 
-## Pushing to GitHub
-
-Make the repo, then:
-
-```bash
-git init
-
-# don't commit node_modules
-echo 'node_modules/' > .gitignore
-
-git add .
-git commit -m "fibserver: Express + worker pool on kind with HPA"
-git remote add origin git@github.com:<you>/<repo>.git
-git push -u origin main
-```
-
 ## Troubleshooting
 
 | Symptom | Cause / Fix |
