@@ -2,6 +2,7 @@ const express = require("express");
 const { Worker } = require("worker_threads");
 const os = require("os");
 const path = require("path");
+const client = require("prom-client");
 
 const app = express();
 
@@ -10,6 +11,47 @@ const POOL_SIZE = Math.max(1, os.cpus().length);
 
 const taskQueue = [];
 const workers = [];
+
+client.collectDefaultMetrics({ register: client.register });
+
+const httpRequestsTotal = new client.Counter({
+  name: "http_requests_total",
+  help: "Total number of HTTP requests",
+  labelNames: ["route", "method", "status"]
+});
+
+const httpRequestDurationMs = new client.Histogram({
+  name: "http_request_duration_ms",
+  help: "HTTP request duration in milliseconds",
+  labelNames: ["route", "method"],
+  buckets: [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000]
+});
+
+const fibComputationDurationMs = new client.Histogram({
+  name: "fib_computation_duration_ms",
+  help: "Time spent computing fibonacci(n) in the worker pool, in milliseconds",
+  buckets: [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000]
+});
+
+const fibQueueDepth = new client.Gauge({
+  name: "fib_queue_depth",
+  help: "Number of fibonacci requests waiting for a worker"
+});
+
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+
+  res.on("finish", () => {
+    const end = process.hrtime.bigint();
+    const duration = Number(end - start) / 1_000_000;
+    const route = (req.route && req.route.path) || req.path;
+
+    httpRequestsTotal.inc({ route, method: req.method, status: res.statusCode });
+    httpRequestDurationMs.observe(duration, { route, method: req.method });
+  });
+
+  next();
+});
 
 function initPool() {
   for (let i = 0; i < POOL_SIZE; i++) {
@@ -48,19 +90,34 @@ function processQueue() {
     worker.job = job;
     worker.postMessage(job.n);
   }
+
+  fibQueueDepth.set(taskQueue.length);
 }
 
 function computeFibonacci(n) {
-  return new Promise((resolve, reject) => {
-    taskQueue.push({ n, resolve, reject });
-    processQueue();
+  const job = { n, resolve: null, reject: null };
+
+  const promise = new Promise((resolve, reject) => {
+    job.resolve = resolve;
+    job.reject = reject;
   });
+
+  taskQueue.push(job);
+  fibQueueDepth.set(taskQueue.length);
+  processQueue();
+
+  return promise;
 }
 
 initPool();
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/metrics", async (req, res) => {
+  res.set("Content-Type", client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 app.get("/fib/:n", async (req, res) => {
@@ -84,6 +141,7 @@ app.get("/fib/:n", async (req, res) => {
   const end = process.hrtime.bigint();
 
   const duration = Number(end - start) / 1_000_000;
+  fibComputationDurationMs.observe(duration);
 
   res.json({
     n,
