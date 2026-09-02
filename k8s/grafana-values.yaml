@@ -1,0 +1,35 @@
+# Grafana Helm chart values
+# - Provisions Prometheus as the default data source (reaches the in-cluster
+#   ClusterIP Service at prometheus:9090).
+# - Enables the dashboard sidecar so ConfigMaps labelled grafana_dashboard=1
+#   (like fibserver-dashboard) are auto-imported.
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
+
+adminUser: admin
+adminPassword: admin
+
+# Disable persistence for this demo (strip data on pod restart).
+persistence:
+  enabled: false
+
+# Dashboard provisioning sidecar: watches ConfigMaps with the dashboard label
+# and imports any .json dashboards found in them.
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
