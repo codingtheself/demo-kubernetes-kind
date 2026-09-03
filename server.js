@@ -6,8 +6,9 @@ const client = require("prom-client");
 
 const app = express();
 
-const PORT = 3000;
-const POOL_SIZE = Math.max(1, os.cpus().length);
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const POOL_SIZE = process.env.POOL_SIZE ? parseInt(process.env.POOL_SIZE, 10) : Math.max(1, os.cpus().length);
+const COMPUTATION_TIMEOUT_MS = 10000; // 10s hard timeout
 
 const taskQueue = [];
 const workers = [];
@@ -38,43 +39,109 @@ const fibQueueDepth = new client.Gauge({
   help: "Number of fibonacci requests waiting for a worker"
 });
 
+const httpInflightRequests = new client.Gauge({
+  name: "http_inflight_requests",
+  help: "Current number of in-flight HTTP requests"
+});
+
 app.use((req, res, next) => {
   const start = process.hrtime.bigint();
+  httpInflightRequests.inc();
 
-  res.on("finish", () => {
+  let finished = false;
+  const onFinish = () => {
+    if (finished) return;
+    finished = true;
+    httpInflightRequests.dec();
+
     const end = process.hrtime.bigint();
     const duration = Number(end - start) / 1_000_000;
     const route = (req.route && req.route.path) || req.path;
 
-    httpRequestsTotal.inc({ route, method: req.method, status: res.statusCode });
+    httpRequestsTotal.inc({ route, method: req.method, status: res.statusCode || 499 });
     httpRequestDurationMs.observe(duration, { route, method: req.method });
-  });
+  };
+
+  res.on("finish", onFinish);
+  res.on("close", onFinish);
 
   next();
 });
 
+function createWorker() {
+  const worker = new Worker(path.join(__dirname, "fibWorker.js"));
+  worker.busy = false;
+  worker.job = null;
+  worker.timeoutTimer = null;
+
+  worker.on("message", (response) => {
+    if (worker.timeoutTimer) {
+      clearTimeout(worker.timeoutTimer);
+      worker.timeoutTimer = null;
+    }
+
+    const job = worker.job;
+    worker.busy = false;
+    worker.job = null;
+
+    if (job && !job.cancelled) {
+      if (response && response.success) {
+        job.resolve(response.result);
+      } else {
+        job.reject(new Error(response?.error || "Worker failed computation"));
+      }
+    }
+
+    processQueue();
+  });
+
+  worker.on("error", (err) => {
+    console.error(`Worker error: ${err.message}. Replacing worker...`);
+    replaceWorker(worker, err);
+  });
+
+  worker.on("exit", (code) => {
+    if (code !== 0 && worker.job) {
+      console.warn(`Worker exited with code ${code}. Replacing worker...`);
+      replaceWorker(worker, new Error(`Worker exited with code ${code}`));
+    }
+  });
+
+  return worker;
+}
+
+function replaceWorker(worker, error) {
+  if (worker.timeoutTimer) {
+    clearTimeout(worker.timeoutTimer);
+    worker.timeoutTimer = null;
+  }
+
+  const job = worker.job;
+  worker.busy = false;
+  worker.job = null;
+
+  const index = workers.indexOf(worker);
+  if (index !== -1) {
+    workers.splice(index, 1);
+  }
+
+  // Terminate running thread immediately to free CPU
+  worker.terminate().catch(() => {});
+
+  if (job && !job.cancelled) {
+    job.reject(error);
+  }
+
+  // Replace with a fresh worker to maintain pool capacity
+  const freshWorker = createWorker();
+  workers.push(freshWorker);
+
+  processQueue();
+}
+
 function initPool() {
   for (let i = 0; i < POOL_SIZE; i++) {
-    const worker = new Worker(path.join(__dirname, "fibWorker.js"));
-    worker.busy = false;
-
-    worker.on("message", (result) => {
-      const job = worker.job;
-      worker.busy = false;
-      worker.job = null;
-      job.resolve(result);
-      processQueue();
-    });
-
-    worker.on("error", (err) => {
-      const job = worker.job;
-      worker.busy = false;
-      worker.job = null;
-      job.reject(err);
-      processQueue();
-    });
-
-    workers.push(worker);
+    workers.push(createWorker());
   }
 }
 
@@ -86,25 +153,64 @@ function processQueue() {
     }
 
     const job = taskQueue.shift();
+    if (job.cancelled) {
+      continue;
+    }
+
     worker.busy = true;
     worker.job = job;
+    job.worker = worker;
+
+    // Start 10-second timeout
+    worker.timeoutTimer = setTimeout(() => {
+      console.warn(`Computation for n=${job.n} timed out after ${COMPUTATION_TIMEOUT_MS}ms. Terminating worker.`);
+      replaceWorker(worker, new Error(`Computation timed out after ${COMPUTATION_TIMEOUT_MS / 1000}s`));
+    }, COMPUTATION_TIMEOUT_MS);
+
     worker.postMessage(job.n);
   }
 
   fibQueueDepth.set(taskQueue.length);
 }
 
-function computeFibonacci(n) {
-  const job = { n, resolve: null, reject: null };
+function computeFibonacci(n, cancelRef) {
+  let job;
 
   const promise = new Promise((resolve, reject) => {
-    job.resolve = resolve;
-    job.reject = reject;
+    job = {
+      n,
+      resolve,
+      reject,
+      cancelled: false,
+      worker: null
+    };
+
+    taskQueue.push(job);
+    fibQueueDepth.set(taskQueue.length);
+    processQueue();
   });
 
-  taskQueue.push(job);
-  fibQueueDepth.set(taskQueue.length);
-  processQueue();
+  if (cancelRef) {
+    cancelRef.cancel = () => {
+      if (job.cancelled) return;
+      job.cancelled = true;
+
+      // 1. If still waiting in queue, remove it immediately
+      const idx = taskQueue.indexOf(job);
+      if (idx !== -1) {
+        taskQueue.splice(idx, 1);
+        fibQueueDepth.set(taskQueue.length);
+      }
+
+      // 2. If already executing on a worker, terminate worker immediately to release CPU core
+      if (job.worker) {
+        console.log(`Client disconnected for n=${n}. Terminating worker and freeing CPU.`);
+        replaceWorker(job.worker, new Error("Client disconnected"));
+      }
+
+      job.reject(new Error("Client disconnected"));
+    };
+  }
 
   return promise;
 }
@@ -129,25 +235,45 @@ app.get("/fib/:n", async (req, res) => {
     });
   }
 
+  const cancelRef = {};
+  req.on("close", () => {
+    if (!res.writableEnded && cancelRef.cancel) {
+      cancelRef.cancel();
+    }
+  });
+
   const start = process.hrtime.bigint();
 
   let result;
   try {
-    result = await computeFibonacci(n);
+    result = await computeFibonacci(n, cancelRef);
   } catch (err) {
-    return res.status(500).json({ error: "internal error" });
+    const end = process.hrtime.bigint();
+    const duration = Number(end - start) / 1_000_000;
+    fibComputationDurationMs.observe(duration);
+
+    if (res.writableEnded) return;
+
+    if (err.message === "Client disconnected") {
+      return;
+    }
+
+    const isTimeout = err.message && err.message.includes("timed out");
+    const statusCode = isTimeout ? 504 : 500;
+    return res.status(statusCode).json({ error: err.message || "internal error" });
   }
 
   const end = process.hrtime.bigint();
-
   const duration = Number(end - start) / 1_000_000;
   fibComputationDurationMs.observe(duration);
 
-  res.json({
-    n,
-    result,
-    duration
-  });
+  if (!res.writableEnded) {
+    res.json({
+      n,
+      result,
+      duration
+    });
+  }
 });
 
 app.listen(PORT, "0.0.0.0", () => {
