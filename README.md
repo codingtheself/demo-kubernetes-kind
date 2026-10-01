@@ -35,6 +35,7 @@ always answer) even while the CPU is saturated.
 - **metrics-server** — required sensor for HPA; kind does *not* ship it by default.
 - **Prometheus** — scrapes `/metrics` from every `fibserver` pod via Kubernetes pod discovery.
 - **Grafana (Helm)** — visualizes Prometheus metrics; data source and dashboard are provisioned automatically.
+- **k6 load test** (`loadtest/`) — staged-ramp traffic generator, runs in-cluster as a Job.
 - **nginx ingress** — routes external HTTP traffic into the cluster at `localhost:80`.
 
 ## Prerequisites
@@ -268,7 +269,114 @@ kubectl get secret grafana -o jsonpath="{.data.admin-password}" | base64 --decod
 
 ---
 
-## Autoscaling demo
+## Load testing with k6
+
+The repo includes a [k6](https://k6.io/) load test that runs **inside the cluster** as a Job, so it
+drives the real Service path (DNS → kube-proxy → pods) without any local installation — k6 ships
+as a Docker image (`grafana/k6`).
+
+### Why k6 (and not Locust / JMeter / wrk / hey)
+
+| Tool | Language | Install | Distributed | Metrics story | Verdict for this project |
+| --- | --- | --- | --- | --- | --- |
+| **k6** | JS | single binary / Docker image | built-in (CLI or xk6-distributed) | outputs Prometheus-format metrics; same vendor as Grafana | **Best fit** |
+| Locust | Python | `pip install` + web UI | master/worker fleet (web UI, heavyweight) | needs a statsd bridge to reach Prometheus | Good if you want a **web UI** and Python |
+| JMeter | Java/Groovy | JRE + GUI | distributed mode | needs a backend listener | Heavy for a demo; GUI-heavy |
+| wrk / hey / ab | C / Go / C | compile or brew/apt | single process only | none | fine for a quick smoke test, no scripted scenarios |
+
+Pick **k6** for this project. Its script language is JavaScript, so it matches the Node.js
+service, and it's the load generator maintained by Grafana — which pairs naturally with a
+Grafana/Prometheus stack. Choose **Locust** instead only if your academic brief specifically
+requires a **web-based load-test UI** or you want to write scenarios in Python.
+
+### The test profile
+
+`loadtest/k6-script.js` uses a **staged ramp** — this is what actually provokes an HPA, because it
+produces sustained CPU above the target rather than a single spike:
+
+| Stage | Duration | Target VUs | Purpose |
+| --- | --- | --- | --- |
+| 1 | 30s | 2 | warm-up / baseline |
+| 2 | 60s | 20 | ramp into saturation |
+| 3 | 120s | 20 | sustained plateau — HPA should sit at `maxReplicas` |
+| 4 | 30s | 60 | spike burst |
+| 5 | 30s | 2 | recovery — HPA should scale back down |
+
+It declares **thresholds** that make the run pass/fail rather than just "generating traffic":
+error rate `< 5%` and p95 latency `< 15s`. Each request hits `/fib/32..36` (~100 ms–1 s of pure CPU
+per call) and the script records custom `fib_computations`, `fib_latency_ms`, and `fib_errors`.
+
+### Run the test
+
+```bash
+# start watching the HPA in one terminal
+kubectl get hpa fibserver -w
+
+# run the load test (takes ~4.5 min)
+kubectl apply -f loadtest/k6-job.yaml
+```
+
+Watch the HPA scale 1 → 5 under the plateau, and observe the pods:
+
+```bash
+kubectl get pods -l app=fibserver -w
+kubectl top pods -l app=fibserver
+```
+
+### Read the results
+
+```bash
+# k6 prints a summary when the Job completes
+kubectl logs -f job/k6-loadtest
+```
+
+Example output from a real run:
+
+```
+=== fibserver load test ===
+requests:   3057
+p95:        4323.5 ms
+error rate: 0.00%
+computations: 3057
+```
+
+Check the Job's exit status (non-zero `COMPLETIONS` means a threshold was breached):
+
+```bash
+kubectl get job k6-loadtest
+```
+
+### Watch it in Grafana
+
+With Grafana open (`kubectl port-forward svc/grafana 3000:80`), the **FibServer Overview**
+dashboard shows the whole story live as the test runs:
+
+- **HTTP Request Rate** climbs as the ramp increases
+- **Worker Queue Depth** spikes as requests outpace the 2-worker pool
+- **p95 Latency** rises as the queue grows
+- **CPU Usage** pins near the 500m cgroup limit, which is what the HPA is reacting to
+
+To confirm the scale-down after the test:
+
+```bash
+kubectl describe hpa fibserver | grep SuccessfulRescale
+# Normal  SuccessfulRescale  ...  New size: 5; reason: cpu ... above target
+# Normal  SuccessfulRescale  ...  New size: 4; reason: All metrics below target
+# Normal  SuccessfulRescale  ...  New size: 2; reason: All metrics below target
+# Normal  SuccessfulRescale  ...  New size: 1; reason: All metrics below target
+```
+
+### Clean up the test
+
+```bash
+kubectl delete -f loadtest/k6-job.yaml
+```
+
+---
+
+## Autoscaling demo (manual, without k6)
+
+If you want a quick smoke test without the full k6 run, use the original `busybox` loadgen:
 
 ### 1. Baseline
 
@@ -277,8 +385,6 @@ kubectl get hpa fibserver
 # NAME        REFERENCE              TARGETS       ...   REPLICAS
 # fibserver   Deployment/fibserver   cpu: 2%/50%    ...   1
 ```
-
-At idle there is 1 replica running at a few percent of the 50m CPU request.
 
 ### 2. Apply load
 
@@ -336,6 +442,7 @@ kubectl get hpa fibserver -w
 ```bash
 # delete the k8s app resources
 kubectl delete pod loadgen --force --grace-period=0   # if it is still running
+kubectl delete -f loadtest/k6-job.yaml 2>/dev/null   # if the k6 Job was run
 kubectl delete -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/hpa.yaml -f k8s/prometheus.yaml -f k8s/ingress.yaml -f k8s/grafana-dashboard-cm.yaml
 
 # uninstall Grafana (Helm)
@@ -420,3 +527,5 @@ kubectl port-forward svc/grafana 3000:3000
 | Grafana can't reach Prometheus ("No data" in panels) | The Prometheus service must be named `prometheus` (data source URL is `http://prometheus:9090`); check `kubectl get svc prometheus` |
 | Grafana dashboard missing after install | Wait ~15s for the sidecar; ensure the `fibserver-dashboard` ConfigMap has the `grafana_dashboard: "1"` label |
 | Grafana login password unknown | `kubectl get secret grafana -o jsonpath="{.data.admin-password}" \| base64 --decode` |
+| k6 Job shows `Error`/`BackoffLimitExceeded` | A threshold was breached (p95 > 15s or errors > 5%), or the `fibserver` Service wasn't reachable; check `kubectl logs job/k6-loadtest` |
+| k6 Job `ImagePullBackOff` | kind nodes must pull `grafana/k6` from Docker Hub; if your cluster is offline, preload with `kind load docker-image grafana/k6:0.53.0 --name kind` |

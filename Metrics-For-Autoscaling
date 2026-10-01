@@ -1,0 +1,17 @@
+metrics required:
+
+1. requests per second (RPS)
+2. Throughput / Token per second
+3. Queue depth / Backlog size -> for messaging queues like Kafka, RabbitMQ
+4. Concurrency / In-Flight Requests
+
+5. CPU Utilization
+6. RAM Usage
+7. Network read/write per second
+8. Latency
+
+9. Time to First Token
+10. End-to-End Time
+11. P95, P99 Latency
+12. Completion Rate
+13. SLA Violation Rate

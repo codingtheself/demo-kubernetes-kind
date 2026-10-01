@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-script
+data:
+  script.js: |
+    import http from "k6/http";
+    import { check, sleep } from "k6";
+    import { Counter, Trend, Rate } from "k6/metrics";
+
+    const fibComputations = new Counter("fib_computations");
+    const fibLatency = new Trend("fib_latency_ms", true);
+    const errors = new Rate("fib_errors");
+
+    export const options = {
+      stages: [
+        { duration: "30s", target: 2 },
+        { duration: "60s", target: 20 },
+        { duration: "120s", target: 20 },
+        { duration: "30s", target: 60 },
+        { duration: "30s", target: 2 },
+      ],
+      thresholds: {
+        http_req_failed: ["rate<0.05"],
+        http_req_duration: ["p(95)<15000"],
+        fib_errors: ["rate<0.05"],
+      },
+    };
+
+    const BASE_URL = __ENV.BASE_URL || "http://fibserver";
+
+    function pickN() {
+      return Math.floor(Math.random() * 5) + 32;
+    }
+
+    export default function () {
+      const n = pickN();
+      const res = http.get(`${BASE_URL}/fib/${n}`, {
+        tags: { route: "/fib/:n" },
+        timeout: "60s",
+      });
+
+      const ok = check(res, {
+        "status is 200": (r) => r.status === 200,
+        "has result": (r) => r && r.body && r.body.indexOf('"result"') !== -1,
+      });
+
+      if (ok) {
+        fibComputations.add(1);
+        fibLatency.add(res.timings.duration);
+      } else {
+        errors.add(1);
+      }
+
+      sleep(0.1);
+    }
+
+    export function handleSummary(data) {
+      return {
+        stdout: "\n=== fibserver load test ===\n" +
+          "requests:   " + (data.metrics.http_reqs ? data.metrics.http_reqs.values.count : 0) + "\n" +
+          "p95:        " + (data.metrics.http_req_duration ? data.metrics.http_req_duration.values['p(95)'].toFixed(1) : 'n/a') + " ms\n" +
+          "error rate: " + ((data.metrics.http_req_failed ? data.metrics.http_req_failed.values.rate * 100 : 0).toFixed(2)) + "%\n" +
+          "computations: " + (data.metrics.fib_computations ? data.metrics.fib_computations.values.count : 0) + "\n",
+      };
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-loadtest
+  labels:
+    app: k6-loadtest
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: k6-loadtest
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:0.53.0
+          command: ["k6", "run", "--quiet", "/scripts/script.js"]
+          env:
+            - name: BASE_URL
+              value: "http://fibserver"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+      volumes:
+        - name: script
+          configMap:
+            name: k6-script
