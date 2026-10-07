@@ -36,6 +36,7 @@ always answer) even while the CPU is saturated.
 - **Prometheus** — scrapes `/metrics` from every `fibserver` pod via Kubernetes pod discovery.
 - **Grafana (Helm)** — visualizes Prometheus metrics; data source and dashboard are provisioned automatically.
 - **k6 load test** (`loadtest/`) — staged-ramp traffic generator, runs in-cluster as a Job.
+- **Custom autoscaler** (`autoscaler.py`) — Python-based controller scaling pods dynamically based on real-time Prometheus RPS with cooldown.
 - **nginx ingress** — routes external HTTP traffic into the cluster at `localhost:80`.
 
 ## Prerequisites
@@ -291,20 +292,17 @@ requires a **web-based load-test UI** or you want to write scenarios in Python.
 
 ### The test profile
 
-`loadtest/k6-script.js` uses a **staged ramp** — this is what actually provokes an HPA, because it
-produces sustained CPU above the target rather than a single spike:
+`loadtest/k6-script.js` uses a **staged ramp** designed to cleanly demonstrate 100+ req/s traffic spikes and cooldown:
 
 | Stage | Duration | Target VUs | Purpose |
 | --- | --- | --- | --- |
-| 1 | 30s | 2 | warm-up / baseline |
-| 2 | 60s | 20 | ramp into saturation |
-| 3 | 120s | 20 | sustained plateau — HPA should sit at `maxReplicas` |
-| 4 | 30s | 60 | spike burst |
-| 5 | 30s | 2 | recovery — HPA should scale back down |
+| 1 | 20s | 2 | warm-up / baseline (~40–60 RPS, under threshold) |
+| 2 | 40s | 8 | traffic spike (~150–250 RPS, triggers scale-up) |
+| 3 | 60s | 1 | recovery / cooldown (~10–30 RPS for 60s, triggers 30s scale-down) |
 
 It declares **thresholds** that make the run pass/fail rather than just "generating traffic":
-error rate `< 5%` and p95 latency `< 15s`. Each request hits `/fib/32..36` (~100 ms–1 s of pure CPU
-per call) and the script records custom `fib_computations`, `fib_latency_ms`, and `fib_errors`.
+error rate `< 5%` and p95 latency `< 5s`. Each request hits `/fib/15..20` (~1–5 ms per call)
+allowing high request throughput, and the script records custom `fib_computations`, `fib_latency_ms`, and `fib_errors`.
 
 ### Run the test
 
@@ -433,6 +431,73 @@ CPU drains quickly; the HPA waits its scale-down **stabilization window** (set t
 ```bash
 kubectl get hpa fibserver -w
 # ... REPLICAS goes 5 → 1 after ~30s of low utilization
+```
+
+---
+
+## Custom RPS-Based Autoscaler Demo (`autoscaler.py`)
+
+In addition to Kubernetes' native CPU-based HPA, this repository includes [`autoscaler.py`](autoscaler.py), a custom Python autoscaling controller that polls Prometheus and scales pods dynamically based on real-time **Requests Per Second (RPS)** with a configurable cooldown period.
+
+### How It Works
+
+- **Sensor:** Continuously queries Prometheus via PromQL: `sum(rate(http_requests_total[30s]))`.
+- **Scale-Up Condition:** When `RPS > threshold` (default `100.0 req/s`), immediately scales up the deployment by 1 replica (up to `--max 5`) and resets the cooldown timer.
+- **Scale-Down Condition:** When `RPS <= threshold`, starts a 30-second cooldown timer. After 30 seconds of sustained low traffic, it scales down by 1 replica (down to `--min 1`).
+- **Resilient Connectivity:** Queries Prometheus directly via HTTP (`http://localhost:9090`) or automatically falls back to in-cluster querying via `kubectl exec deploy/prometheus` (so it works even without port-forwarding running).
+
+### Running the Custom Autoscaler Demo
+
+#### 1. Disable native CPU HPA (Prevent controller conflict)
+Since native Kubernetes HPA scales on CPU and `autoscaler.py` scales on RPS, temporarily remove the native HPA to give the script exclusive control:
+
+```bash
+kubectl delete hpa fibserver --ignore-not-found
+```
+
+*(You can re-enable the native HPA anytime with `kubectl apply -f k8s/hpa.yaml`)*.
+
+#### 2. Start the custom autoscaler in Terminal 1
+```bash
+python3 autoscaler.py --threshold 100 --cooldown 30
+```
+
+Available CLI flags:
+- `--threshold <req/s>`: Trigger threshold in requests/second (default: `100.0`)
+- `--cooldown <seconds>`: Cooldown before scale-down (default: `30`)
+- `--interval <seconds>`: Prometheus poll frequency (default: `3`)
+- `--min <n>` / `--max <n>`: Pod replica bounds (default: `1` to `5`)
+- `--target <deployment>`: Target Deployment name (default: `fibserver`)
+
+#### 3. Trigger the 100+ req/s load test in Terminal 2
+```bash
+# Shortcut: delete previous job (if any) and launch the staged test
+kubectl delete job k6-loadtest --ignore-not-found && kubectl apply -f loadtest/k6-job.yaml
+```
+
+#### 4. Observe the live scaling lifecycle
+In Terminal 1, watch the colorized real-time output:
+
+```text
+[15:48:57] [STABLE]   🟢 RPS: 40.7 <= 100.0  | At minReplicas (1)
+[15:49:12] [STABLE]   🟢 RPS: 74.3 <= 100.0  | At minReplicas (1)
+[15:49:28] [SCALE UP] 🚀 RPS: 168.3 > 100.0  | Replicas: 1 -> 2
+[15:49:30] [SCALE UP] 🚀 RPS: 168.3 > 100.0  | Replicas: 2 -> 3
+[15:49:32] [SCALE UP] 🚀 RPS: 168.3 > 100.0  | Replicas: 3 -> 4
+[15:49:35] [SCALE UP] 🚀 RPS: 168.3 > 100.0  | Replicas: 4 -> 5
+[15:49:38] [AT MAX]   🔥 RPS: 207.1 > 100.0  | Max replicas (5) reached
+...
+[15:50:57] [COOLDOWN] ⏳ RPS: 8.7 <= 100.0   | Starting 30s cooldown (Replicas: 5)
+[15:51:03] [COOLDOWN] ⏳ RPS: 8.7 <= 100.0   | Cooling down... 6s/30s (Replicas: 5)
+[15:51:14] [COOLDOWN] ⏳ RPS: 1.7 <= 100.0   | Cooling down... 17s/30s (Replicas: 5)
+[15:51:27] [SCALE DOWN] 📉 Cooldown expired (30.0s >= 30s) | Replicas: 5 -> 4
+[15:51:29] [COOLDOWN]   ⏳ RPS: 1.9 <= 100.0 | Cooling down... 2s/30s (Replicas: 4)
+```
+
+#### 5. Stop the autoscaler
+Press `Ctrl+C` in Terminal 1 to exit cleanly. To re-enable the native CPU-based HPA:
+```bash
+kubectl apply -f k8s/hpa.yaml
 ```
 
 ---
