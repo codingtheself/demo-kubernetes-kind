@@ -8,36 +8,33 @@ const fibLatency = new Trend("fib_latency_ms", true);
 const errors = new Rate("fib_errors");
 
 export const options = {
-  // Staged ramp: start low, ramp to a plateau, then spike, then recover.
-  // This is what actually provokes the HPA: sustained CPU above target.
+  // Staged ramp tuned for 100+ req/s spike autoscaling demonstration
   stages: [
-    { duration: "30s", target: 2 },   // warm-up / baseline
-    { duration: "60s", target: 20 },  // ramp into saturation
-    { duration: "120s", target: 20 }, // sustained plateau (HPA should be at max)
-    { duration: "30s", target: 60 },  // spike burst
-    { duration: "30s", target: 2 },   // recovery (HPA should scale back down)
+    { duration: "20s", target: 2 },   // Baseline warm-up: ~40-60 RPS (under 100 threshold)
+    { duration: "40s", target: 8 },   // Traffic spike: ~150-220 RPS (exceeds 100 threshold -> triggers scale up)
+    { duration: "60s", target: 1 },   // Recovery / Low traffic: ~20-30 RPS (under 100 for 60s -> triggers 30s cooldown & scale down)
   ],
   thresholds: {
     // Pass/fail criteria — k6 exits non-zero if these are breached.
     http_req_failed: ["rate<0.05"],                  // < 5% errors
-    http_req_duration: ["p(95)<15000"],              // p95 under 15s
+    http_req_duration: ["p(95)<5000"],               // p95 under 5s
     fib_errors: ["rate<0.05"],
   },
 };
 
 const BASE_URL = __ENV.BASE_URL || "http://fibserver";
 
-// Keep n moderate so each request finishes in a reasonable time but still
-// burns real CPU. fib(32) ~ 100ms, fib(36) ~ 1s of pure CPU per request.
+// Keep n in 15..20 (~1-5ms per computation).
+// This enables generating 100-250 requests/sec cleanly without stalling worker threads.
 function pickN() {
-  return Math.floor(Math.random() * 5) + 32; // 32..36
+  return Math.floor(Math.random() * 6) + 15; // 15..20
 }
 
 export default function () {
   const n = pickN();
   const res = http.get(`${BASE_URL}/fib/${n}`, {
     tags: { route: "/fib/:n" },
-    timeout: "60s",
+    timeout: "15s",
   });
 
   const ok = check(res, {
@@ -52,7 +49,7 @@ export default function () {
     errors.add(1);
   }
 
-  sleep(0.1);
+  sleep(0.02);
 }
 
 export function handleSummary(data) {
