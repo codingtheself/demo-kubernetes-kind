@@ -201,6 +201,30 @@ run_k6_test() {
     kubectl logs -f job/k6-generalization
 }
 
+open_grafana() {
+    log_info "Starting port-forward for Grafana..."
+    echo ""
+    echo -e "${GREEN}${BOLD}===================================================================${NC}"
+    echo -e "${GREEN}${BOLD}  Grafana Web UI : ${CYAN}http://localhost:3000${NC}"
+    echo -e "${GREEN}${BOLD}  Username       : ${YELLOW}admin${NC}"
+    echo -e "${GREEN}${BOLD}  Password       : ${YELLOW}admin${NC}"
+    echo -e "${GREEN}${BOLD}===================================================================${NC}"
+    echo -e "Press ${BOLD}Ctrl+C${NC} anytime to stop the port-forward."
+    echo ""
+    kubectl port-forward svc/grafana 3000:80
+}
+
+open_prometheus() {
+    log_info "Starting port-forward for Prometheus..."
+    echo ""
+    echo -e "${GREEN}${BOLD}===================================================================${NC}"
+    echo -e "${GREEN}${BOLD}  Prometheus Web UI : ${CYAN}http://localhost:9090${NC}"
+    echo -e "${GREEN}${BOLD}===================================================================${NC}"
+    echo -e "Press ${BOLD}Ctrl+C${NC} anytime to stop the port-forward."
+    echo ""
+    kubectl port-forward svc/prometheus 9090:9090
+}
+
 case "$1" in
     start|up)
         start_cluster
@@ -222,8 +246,14 @@ case "$1" in
     test)
         run_k6_test
         ;;
+    grafana|dashboard)
+        open_grafana
+        ;;
+    prometheus)
+        open_prometheus
+        ;;
     *)
-        echo "Usage: $0 {start|stop|destroy|restart|status|test}"
+        echo "Usage: $0 {start|stop|destroy|restart|status|test|grafana|prometheus}"
         exit 1
         ;;
 esac
