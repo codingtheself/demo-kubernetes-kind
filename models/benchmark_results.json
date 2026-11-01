@@ -1,0 +1,20 @@
+{
+  "Bi-LSTM (Proposed)": {
+    "MAE (RPS)": 5.98,
+    "RMSE (RPS)": 10.23,
+    "MAPE (%)": 10.02,
+    "Inference Latency (ms)": 1.21
+  },
+  "Standard LSTM (Baseline 1)": {
+    "MAE (RPS)": 6.25,
+    "RMSE (RPS)": 10.36,
+    "MAPE (%)": 10.63,
+    "Inference Latency (ms)": 0.76
+  },
+  "Ridge Regression (Baseline 2)": {
+    "MAE (RPS)": 5.35,
+    "RMSE (RPS)": 10.0,
+    "MAPE (%)": 8.29,
+    "Inference Latency (ms)": 0.09
+  }
+}
