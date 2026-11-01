@@ -315,7 +315,7 @@ def main():
                 detail = f"Predicted: {predicted_rps:.1f} RPS matches {current_replicas} pod(s) capacity"
 
             # Formatted log line
-            print(f"[{timestamp}] {action_tag:<32} Current: {current_rps:>5.1f} RPS | {detail}")
+            print(f"[{timestamp}] {action_tag:<32} Current: {current_rps:>5.1f} RPS | {detail}", flush=True)
             time.sleep(args.interval)
 
     except KeyboardInterrupt:
