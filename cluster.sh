@@ -246,6 +246,12 @@ case "$1" in
     test)
         run_k6_test
         ;;
+    traffic)
+        python3 traffic.py --rps "${2:-120}"
+        ;;
+    monitor)
+        python3 monitor.py
+        ;;
     grafana|dashboard)
         open_grafana
         ;;
@@ -253,7 +259,7 @@ case "$1" in
         open_prometheus
         ;;
     *)
-        echo "Usage: $0 {start|stop|destroy|restart|status|test|grafana|prometheus}"
+        echo "Usage: $0 {start|stop|destroy|restart|status|test|traffic [RPS]|monitor|grafana|prometheus}"
         exit 1
         ;;
 esac
