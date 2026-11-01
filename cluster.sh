@@ -186,7 +186,18 @@ run_k6_test() {
     kubectl delete job k6-generalization 2>/dev/null || true
     kubectl delete configmap k6-generalization-script 2>/dev/null || true
     kubectl apply -f loadtest/k6-generalization-job.yaml
-    log_info "Job dispatched! Streaming live k6 telemetry logs..."
+    log_info "Waiting for k6 container to initialize..."
+    local retries=30
+    while [ $retries -gt 0 ]; do
+        local phase
+        phase=$(kubectl get pod -l app=k6-generalization -o jsonpath='{.items[0].status.phase}' 2>/dev/null || true)
+        if [ "$phase" = "Running" ] || [ "$phase" = "Succeeded" ]; then
+            break
+        fi
+        sleep 1
+        retries=$((retries - 1))
+    done
+    log_info "Job running! Streaming live k6 telemetry logs..."
     kubectl logs -f job/k6-generalization
 }
 

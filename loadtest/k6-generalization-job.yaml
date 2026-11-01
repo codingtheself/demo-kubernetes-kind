@@ -81,10 +81,11 @@ data:
 
     export function handleSummary(data) {
       const httpReqs = data.metrics.http_reqs ? data.metrics.http_reqs.values.count : 0;
-      const p50 = data.metrics.http_req_duration ? data.metrics.http_req_duration.values["p(50)"].toFixed(1) : "n/a";
-      const p95 = data.metrics.http_req_duration ? data.metrics.http_req_duration.values["p(95)"].toFixed(1) : "n/a";
-      const p99 = data.metrics.http_req_duration ? data.metrics.http_req_duration.values["p(99)"].toFixed(1) : "n/a";
-      const avg = data.metrics.http_req_duration ? data.metrics.http_req_duration.values.avg.toFixed(1) : "n/a";
+      const v = (data.metrics.http_req_duration && data.metrics.http_req_duration.values) || {};
+      const med = v.med !== undefined ? v.med.toFixed(1) : "n/a";
+      const p90 = v["p(90)"] !== undefined ? v["p(90)"].toFixed(1) : "n/a";
+      const p95 = v["p(95)"] !== undefined ? v["p(95)"].toFixed(1) : "n/a";
+      const avg = v.avg !== undefined ? v.avg.toFixed(1) : "n/a";
       const errorRate = (data.metrics.request_errors ? data.metrics.request_errors.values.rate * 100 : 0).toFixed(2);
       const slaRate = (data.metrics.sla_violations ? data.metrics.sla_violations.values.rate * 100 : 0).toFixed(2);
 
@@ -94,9 +95,9 @@ data:
           "===================================================================\n" +
           "  Total Requests Processed : " + httpReqs + "\n" +
           "  Average Latency          : " + avg + " ms\n" +
-          "  Median Latency (p50)     : " + p50 + " ms\n" +
+          "  Median Latency (p50)     : " + med + " ms\n" +
+          "  P90 Latency              : " + p90 + " ms\n" +
           "  P95 Latency              : " + p95 + " ms\n" +
-          "  P99 Latency              : " + p99 + " ms\n" +
           "  SLA Violation Rate (>1s) : " + slaRate + " %\n" +
           "  HTTP Error Rate          : " + errorRate + " %\n" +
           "===================================================================\n",
