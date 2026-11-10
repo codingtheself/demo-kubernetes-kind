@@ -31,7 +31,7 @@ sleep 3
 
 # 3. Start the AI predictive autoscaler (background, logs to terminal)
 echo "[demo] Starting AI Predictive Autoscaler..."
-.venv/bin/python predictive_autoscaler.py --interval 30 --cpod 50 &
+.venv/bin/python predictive_autoscaler.py --interval 30 --pod-capacity 50 &
 AUTOSCALER_PID=$!
 
 echo ""
