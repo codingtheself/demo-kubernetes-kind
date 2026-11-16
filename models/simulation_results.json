@@ -1,65 +1,65 @@
 {
   "Bi-LSTM": {
-    "SLA Violation Rate (%)": 4.68,
-    "Max Traffic Deficit (RPS)": 113.25,
-    "Average Replicas": 1.79,
-    "Capacity Waste (%)": 30.99,
-    "Total Pod-Hours": 90.13
+    "SLA Violation Rate (%)": 4.3,
+    "Max Traffic Deficit (RPS)": 113.02,
+    "Average Replicas": 1.91,
+    "Capacity Waste (%)": 30.97,
+    "Total Pod-Hours": 96.31
   },
   "GRU": {
-    "SLA Violation Rate (%)": 6.78,
-    "Max Traffic Deficit (RPS)": 113.25,
-    "Average Replicas": 1.73,
-    "Capacity Waste (%)": 28.89,
-    "Total Pod-Hours": 87.36
+    "SLA Violation Rate (%)": 4.51,
+    "Max Traffic Deficit (RPS)": 113.02,
+    "Average Replicas": 1.91,
+    "Capacity Waste (%)": 30.95,
+    "Total Pod-Hours": 96.26
   },
   "Standard LSTM": {
-    "SLA Violation Rate (%)": 4.7,
-    "Max Traffic Deficit (RPS)": 113.25,
-    "Average Replicas": 1.78,
-    "Capacity Waste (%)": 30.82,
-    "Total Pod-Hours": 89.92
+    "SLA Violation Rate (%)": 3.79,
+    "Max Traffic Deficit (RPS)": 113.02,
+    "Average Replicas": 1.94,
+    "Capacity Waste (%)": 31.89,
+    "Total Pod-Hours": 97.64
   },
   "MLP": {
-    "SLA Violation Rate (%)": 8.04,
-    "Max Traffic Deficit (RPS)": 113.25,
-    "Average Replicas": 1.71,
-    "Capacity Waste (%)": 27.84,
-    "Total Pod-Hours": 86.0
+    "SLA Violation Rate (%)": 3.29,
+    "Max Traffic Deficit (RPS)": 98.57,
+    "Average Replicas": 1.94,
+    "Capacity Waste (%)": 32.09,
+    "Total Pod-Hours": 98.01
   },
   "Random Forest": {
-    "SLA Violation Rate (%)": 5.57,
-    "Max Traffic Deficit (RPS)": 113.25,
-    "Average Replicas": 1.76,
-    "Capacity Waste (%)": 29.82,
-    "Total Pod-Hours": 88.58
+    "SLA Violation Rate (%)": 4.15,
+    "Max Traffic Deficit (RPS)": 113.02,
+    "Average Replicas": 1.92,
+    "Capacity Waste (%)": 31.25,
+    "Total Pod-Hours": 96.69
   },
   "Ridge Regression": {
-    "SLA Violation Rate (%)": 5.57,
-    "Max Traffic Deficit (RPS)": 113.25,
-    "Average Replicas": 1.76,
-    "Capacity Waste (%)": 29.83,
-    "Total Pod-Hours": 88.58
+    "SLA Violation Rate (%)": 4.7,
+    "Max Traffic Deficit (RPS)": 113.02,
+    "Average Replicas": 1.9,
+    "Capacity Waste (%)": 30.7,
+    "Total Pod-Hours": 95.9
   },
   "Transformer": {
-    "SLA Violation Rate (%)": 5.31,
-    "Max Traffic Deficit (RPS)": 113.25,
-    "Average Replicas": 1.76,
-    "Capacity Waste (%)": 29.95,
-    "Total Pod-Hours": 88.77
+    "SLA Violation Rate (%)": 3.39,
+    "Max Traffic Deficit (RPS)": 113.02,
+    "Average Replicas": 1.94,
+    "Capacity Waste (%)": 32.04,
+    "Total Pod-Hours": 97.91
   },
   "Static (4 Pods Always)": {
-    "SLA Violation Rate (%)": 0.02,
-    "Max Traffic Deficit (RPS)": 13.25,
+    "SLA Violation Rate (%)": 0.05,
+    "Max Traffic Deficit (RPS)": 13.02,
     "Average Replicas": 4.0,
-    "Capacity Waste (%)": 68.8,
+    "Capacity Waste (%)": 66.73,
     "Total Pod-Hours": 201.57
   },
   "Reactive Baseline (Lags 1 Step)": {
-    "SLA Violation Rate (%)": 6.57,
-    "Max Traffic Deficit (RPS)": 113.25,
-    "Average Replicas": 1.82,
-    "Capacity Waste (%)": 32.13,
-    "Total Pod-Hours": 91.55
+    "SLA Violation Rate (%)": 6.5,
+    "Max Traffic Deficit (RPS)": 113.02,
+    "Average Replicas": 1.94,
+    "Capacity Waste (%)": 32.0,
+    "Total Pod-Hours": 97.51
   }
 }

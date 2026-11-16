@@ -4,3 +4,10 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 
+# Research papers & raw downloaded datasets
+research-papers/
+research_papers/
+data/alibaba_raw/
+*.tar.gz
+*.gz
+*.zip
