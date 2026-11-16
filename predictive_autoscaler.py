@@ -4,13 +4,13 @@ predictive_autoscaler.py
 
 AI-Driven Predictive Autoscaler for Kubernetes Microservice (fibserver).
 Implements the MAPE-K (Monitor-Analyze-Plan-Execute) architecture using:
-  - Deep Learning Forecaster: Bidirectional LSTM (Bi-LSTM) trained on Alibaba Cloud Trace
+  - Deep Learning & Classical Forecasters via model_zoo (Bi-LSTM, LSTM, GRU, Transformer, MLP, Ridge, RF)
   - Adaption Manager: Capacity-based proactive pod dimensioning with Resource Removal Strategy (RRS)
     and Cooling Down Time (CDT) based on Dang-Quang & Yoo (Applied Sciences 2021).
 
 Formulation:
   1. Monitor: Prometheus queries sliding request arrivals: [W_{t-k}, ..., W_t]
-  2. Analyze: Bi-LSTM infers predicted arrival rate for the upcoming interval: \\hat{W}_{t+1}
+  2. Analyze: Forecaster infers predicted arrival rate for the upcoming interval: \\hat{W}_{t+1}
   3. Plan:
        Required Replicas R_{target} = ceil( \\hat{W}_{t+1} / C_{pod} )
        - If R_{target} > R_{current}: Proactive Scale-Out (provision ahead of traffic)
@@ -40,7 +40,16 @@ import urllib.parse
 from collections import deque
 import numpy as np
 import torch
-import torch.nn as nn
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from model_zoo.registry import (
+    get_model,
+    list_available_models,
+    get_default_model_filename,
+)
 
 # ANSI Color Codes
 GREEN = "\033[92m"
@@ -52,44 +61,20 @@ BOLD = "\033[1m"
 RESET = "\033[0m"
 
 
-class BiLSTMWorkloadPredictor(nn.Module):
-    """Bidirectional LSTM network matching the trained checkpoint architecture."""
-    def __init__(self, input_dim: int = 1, hidden_dim: int = 64, num_layers: int = 2, dropout: float = 0.2):
-        super().__init__()
-        self.lstm = nn.LSTM(
-            input_size=input_dim,
-            hidden_size=hidden_dim,
-            num_layers=num_layers,
-            batch_first=True,
-            bidirectional=True,
-            dropout=dropout if num_layers > 1 else 0.0
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(hidden_dim * 2, 32),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(32, 1)
-        )
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        last_step = out[:, -1, :]
-        return self.fc(last_step).squeeze(-1)
-
-
 class AIWorkloadPredictor:
-    """Encapsulates scaler, PyTorch model, and sliding lookback window inference."""
-    def __init__(self, model_path: str, scaler_path: str, lookback: int = 12, device: str = "cpu"):
+    """Encapsulates scaler, plug-and-play model, and sliding lookback window inference."""
+    def __init__(self, model_type: str, model_path: str, scaler_path: str, lookback: int = 12, device: str = "cpu"):
+        self.model_type = model_type
+        self.model_path = model_path
         self.lookback = lookback
-        self.device = torch.device(device)
+        self.device = device
         self.history = deque(maxlen=lookback)
 
         with open(scaler_path, "rb") as f:
             self.scaler = pickle.load(f)
 
-        self.model = BiLSTMWorkloadPredictor(input_dim=1, hidden_dim=64, num_layers=2, dropout=0.0).to(self.device)
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
-        self.model.eval()
+        self.model = get_model(model_type, lookback=lookback, device=device)
+        self.model.load(model_path)
 
     def update_history(self, current_rps: float):
         """Append latest measured Prometheus RPS to rolling history."""
@@ -104,7 +89,7 @@ class AIWorkloadPredictor:
         If history is still warming up, fills missing steps with current_rps.
         """
         self.update_history(current_rps)
-        
+
         # Pad with current RPS if buffer not fully populated
         window = list(self.history)
         if len(window) < self.lookback:
@@ -114,9 +99,8 @@ class AIWorkloadPredictor:
         arr = np.array(window).reshape(-1, 1)
         arr_norm = self.scaler.transform(arr).flatten()
 
-        tensor_in = torch.tensor(arr_norm.reshape(1, self.lookback, 1), dtype=torch.float32).to(self.device)
-        with torch.no_grad():
-            pred_norm = self.model(tensor_in).item()
+        # Model inference via universal interface
+        pred_norm = self.model.predict_step(arr_norm)
 
         # Inverse transform to get predicted requests/sec
         pred_rps = self.scaler.inverse_transform([[pred_norm]])[0][0]
@@ -200,37 +184,93 @@ def check_and_warn_hpa(deployment_name: str, namespace: str = "default"):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AI-Driven Predictive Autoscaler for Kubernetes (Dang-Quang & Yoo)")
-    parser.add_argument("--model-path", type=str, default="models/bilstm_workload_model.pt",
-                        help="Path to trained Bi-LSTM model weights")
-    parser.add_argument("--scaler-path", type=str, default="models/scaler.pkl",
-                        help="Path to serialized MinMaxScaler")
-    parser.add_argument("--pod-capacity", type=float, default=50.0,
-                        help="Single pod max throughput C_pod before SLA violation (default: 50 req/s)")
-    parser.add_argument("--cooldown", type=int, default=45,
-                        help="Cooling-down time (CDT) in seconds before scaling down (default: 45)")
-    parser.add_argument("--rrs", type=float, default=0.5,
-                        help="Resource Removal Strategy ratio (0.1 - 1.0) on downscale (default: 0.5)")
-    parser.add_argument("--interval", type=int, default=5,
-                        help="Poll & decision loop interval in seconds (default: 5)")
-    parser.add_argument("--min", type=int, default=1,
-                        help="Minimum allowed replicas (default: 1)")
-    parser.add_argument("--max", type=int, default=8,
-                        help="Maximum allowed replicas (default: 8)")
-    parser.add_argument("--target", type=str, default="fibserver",
-                        help="Kubernetes Deployment name")
-    parser.add_argument("--namespace", type=str, default="default",
-                        help="Kubernetes namespace")
-    parser.add_argument("--prom-url", type=str, default="http://localhost:9090",
-                        help="Prometheus Base URL")
+    parser = argparse.ArgumentParser(description="AI-Driven Predictive Autoscaler for Kubernetes (Plug-and-Play)")
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="bilstm",
+        choices=list_available_models(),
+        help=f"AI model architecture to use. Available: {', '.join(list_available_models())} (default: bilstm)"
+    )
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+        help="Path to trained model weights (default: models/<model_type>_workload_model.[pt|pkl])"
+    )
+    parser.add_argument(
+        "--scaler-path",
+        type=str,
+        default="models/scaler.pkl",
+        help="Path to serialized MinMaxScaler"
+    )
+    parser.add_argument(
+        "--pod-capacity",
+        type=float,
+        default=50.0,
+        help="Single pod max throughput C_pod before SLA violation (default: 50 req/s)"
+    )
+    parser.add_argument(
+        "--cooldown",
+        type=int,
+        default=45,
+        help="Cooling-down time (CDT) in seconds before scaling down (default: 45)"
+    )
+    parser.add_argument(
+        "--rrs",
+        type=float,
+        default=0.5,
+        help="Resource Removal Strategy ratio (0.1 - 1.0) on downscale (default: 0.5)"
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=5,
+        help="Poll & decision loop interval in seconds (default: 5)"
+    )
+    parser.add_argument(
+        "--min",
+        type=int,
+        default=1,
+        help="Minimum allowed replicas (default: 1)"
+    )
+    parser.add_argument(
+        "--max",
+        type=int,
+        default=8,
+        help="Maximum allowed replicas (default: 8)"
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        default="fibserver",
+        help="Kubernetes Deployment name"
+    )
+    parser.add_argument(
+        "--namespace",
+        type=str,
+        default="default",
+        help="Kubernetes namespace"
+    )
+    parser.add_argument(
+        "--prom-url",
+        type=str,
+        default="http://localhost:9090",
+        help="Prometheus Base URL"
+    )
 
     args = parser.parse_args()
 
+    # Automatically resolve weights path if not passed explicitly
+    if args.model_path is None:
+        args.model_path = os.path.join("models", get_default_model_filename(args.model_type))
+
     print(f"\n{BOLD}{CYAN}==================================================================={RESET}")
-    print(f"{BOLD}{CYAN}    AI-DRIVEN PREDICTIVE AUTOSCALER (Bi-LSTM + Adaption Manager)   {RESET}")
+    print(f"{BOLD}{CYAN}    AI-DRIVEN PREDICTIVE AUTOSCALER (Plug-and-Play Controller)     {RESET}")
     print(f"{BOLD}{CYAN}==================================================================={RESET}")
     print(f"  Target Deployment   : {BOLD}{args.target}{RESET}")
-    print(f"  AI Model Checkpoint : {BOLD}{args.model_path}{RESET}")
+    print(f"  AI Model Type       : {BOLD}{args.model_type.upper()}{RESET}")
+    print(f"  AI Model Weights    : {BOLD}{args.model_path}{RESET}")
     print(f"  Pod Capacity (C_pod): {BOLD}{args.pod_capacity:.1f} req/s per replica{RESET}")
     print(f"  Replica Bounds      : {BOLD}[{args.min} .. {args.max}]{RESET}")
     print(f"  Cooldown Time (CDT) : {BOLD}{args.cooldown} seconds{RESET}")
@@ -243,14 +283,15 @@ def main():
     # Initialize AI Predictor
     try:
         predictor = AIWorkloadPredictor(
+            model_type=args.model_type,
             model_path=args.model_path,
             scaler_path=args.scaler_path,
             lookback=12,
             device="cpu"
         )
-        print(f"{GREEN}✓ Bi-LSTM Neural Network successfully loaded onto CPU inference engine.{RESET}\n")
+        print(f"{GREEN}✓ [{args.model_type.upper()}] model successfully loaded onto CPU inference engine.{RESET}\n")
     except Exception as e:
-        print(f"{RED}[FATAL] Failed to load AI model: {e}{RESET}")
+        print(f"{RED}[FATAL] Failed to load AI model '{args.model_type}' from {args.model_path}: {e}{RESET}")
         sys.exit(1)
 
     cooldown_start_time = None
@@ -261,7 +302,7 @@ def main():
             current_rps = get_prometheus_rps(args.prom_url)
             current_replicas = get_current_replicas(args.target, args.namespace)
 
-            # --- ANALYZE: Bi-LSTM Forecast ---
+            # --- ANALYZE: Model Forecast ---
             predicted_rps = predictor.predict_next_workload(current_rps)
 
             # --- PLAN: Dang-Quang & Yoo Capacity-Based Dimensioning ---
@@ -273,7 +314,6 @@ def main():
             action_tag = "[STABLE]"
 
             # Decision Logic 1: PROACTIVE SCALE-OUT
-            # Triggered immediately as soon as predicted demand exceeds current capacity
             if target_replicas > current_replicas:
                 cooldown_start_time = None
                 scale_deployment(args.target, target_replicas, args.namespace)
@@ -292,7 +332,6 @@ def main():
                     elapsed = time.time() - cooldown_start_time
                     if elapsed >= args.cooldown:
                         # Cooldown expired: Apply Resource Removal Strategy (RRS)
-                        # Remove only a fraction of surplus pods to avoid thrashing if burst returns
                         surplus = current_replicas - target_replicas
                         to_remove = max(1, int(np.ceil(surplus * args.rrs)))
                         new_replicas = max(target_replicas, current_replicas - to_remove)

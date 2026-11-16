@@ -1,20 +1,72 @@
 {
-  "Bi-LSTM (Proposed)": {
-    "MAE (RPS)": 5.98,
-    "RMSE (RPS)": 10.23,
-    "MAPE (%)": 10.02,
-    "Inference Latency (ms)": 1.21
+  "Bi-LSTM": {
+    "Model Key": "bilstm",
+    "MAE (RPS)": 5.8,
+    "RMSE (RPS)": 10.17,
+    "MAPE (%)": 9.5,
+    "Inference Latency (ms)": 8.29,
+    "Parameters": 137793,
+    "Training Time (s)": 156.61,
+    "Artifact": "bilstm_workload_model.pt"
   },
-  "Standard LSTM (Baseline 1)": {
-    "MAE (RPS)": 6.25,
-    "RMSE (RPS)": 10.36,
-    "MAPE (%)": 10.63,
-    "Inference Latency (ms)": 0.76
+  "GRU": {
+    "Model Key": "gru",
+    "MAE (RPS)": 5.39,
+    "RMSE (RPS)": 10.0,
+    "MAPE (%)": 8.43,
+    "Inference Latency (ms)": 2.61,
+    "Parameters": 39937,
+    "Training Time (s)": 114.45,
+    "Artifact": "gru_workload_model.pt"
   },
-  "Ridge Regression (Baseline 2)": {
+  "Standard LSTM": {
+    "Model Key": "lstm",
+    "MAE (RPS)": 5.87,
+    "RMSE (RPS)": 10.22,
+    "MAPE (%)": 9.69,
+    "Inference Latency (ms)": 5.25,
+    "Parameters": 52545,
+    "Training Time (s)": 68.04,
+    "Artifact": "lstm_workload_model.pt"
+  },
+  "MLP": {
+    "Model Key": "mlp",
+    "MAE (RPS)": 5.18,
+    "RMSE (RPS)": 9.86,
+    "MAPE (%)": 7.99,
+    "Inference Latency (ms)": 0.24,
+    "Parameters": 2945,
+    "Training Time (s)": 14.01,
+    "Artifact": "mlp_workload_model.pt"
+  },
+  "Random Forest": {
+    "Model Key": "random_forest",
+    "MAE (RPS)": 5.24,
+    "RMSE (RPS)": 9.89,
+    "MAPE (%)": 8.16,
+    "Inference Latency (ms)": 19.96,
+    "Parameters": 21680,
+    "Training Time (s)": 8.65,
+    "Artifact": "random_forest_workload_model.pkl"
+  },
+  "Ridge Regression": {
+    "Model Key": "ridge",
     "MAE (RPS)": 5.35,
     "RMSE (RPS)": 10.0,
     "MAPE (%)": 8.29,
-    "Inference Latency (ms)": 0.09
+    "Inference Latency (ms)": 0.18,
+    "Parameters": 13,
+    "Training Time (s)": 0.01,
+    "Artifact": "ridge_workload_model.pkl"
+  },
+  "Transformer": {
+    "Model Key": "transformer",
+    "MAE (RPS)": 5.23,
+    "RMSE (RPS)": 9.83,
+    "MAPE (%)": 8.15,
+    "Inference Latency (ms)": 1.72,
+    "Parameters": 9697,
+    "Training Time (s)": 34.32,
+    "Artifact": "transformer_workload_model.pt"
   }
 }
