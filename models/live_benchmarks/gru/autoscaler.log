@@ -1,0 +1,38 @@
+
+[1m[96m===================================================================[0m
+[1m[96m    AI-DRIVEN PREDICTIVE AUTOSCALER (Plug-and-Play Controller)     [0m
+[1m[96m===================================================================[0m
+  Target Deployment   : [1mfibserver[0m
+  AI Model Type       : [1mGRU[0m
+  AI Model Weights    : [1mmodels/gru_workload_model.pt[0m
+  Pod Capacity (C_pod): [1m50.0 req/s per replica[0m
+  Replica Bounds      : [1m[1 .. 8][0m
+  Cooldown Time (CDT) : [1m30 seconds[0m
+  Resource Removal RR : [1m50% gradual decay[0m
+  Control Interval    : [1m3s[0m
+[96m===================================================================[0m
+
+[92m✓ [GRU] model successfully loaded onto CPU inference engine.[0m
+
+[19:31:37] [91m[1m[PROACTIVE SCALE-UP] 🚀[0m Current:  50.6 RPS | Predicted: 52.0 RPS | Scaling 1 -> 2 pods ahead of burst
+[19:31:41] [93m[COOLDOWN ACTIVE] ⏳[0m     Current:  31.6 RPS | Predicted: 36.6 RPS < Cap (100) | CDT 0/30s
+[19:31:44] [93m[COOLDOWN] ⏳[0m            Current:  23.5 RPS | Predicted: 31.0 RPS | Cooling down 3/30s (Holding 2 pods)
+[19:31:47] [93m[COOLDOWN] ⏳[0m            Current:  19.0 RPS | Predicted: 28.3 RPS | Cooling down 6/30s (Holding 2 pods)
+[19:31:50] [93m[COOLDOWN] ⏳[0m            Current:  14.8 RPS | Predicted: 26.2 RPS | Cooling down 9/30s (Holding 2 pods)
+[19:31:53] [93m[COOLDOWN] ⏳[0m            Current:  16.1 RPS | Predicted: 27.0 RPS | Cooling down 12/30s (Holding 2 pods)
+[19:31:56] [93m[COOLDOWN] ⏳[0m            Current:  20.9 RPS | Predicted: 29.0 RPS | Cooling down 16/30s (Holding 2 pods)
+[19:31:59] [93m[COOLDOWN] ⏳[0m            Current:  25.8 RPS | Predicted: 30.4 RPS | Cooling down 19/30s (Holding 2 pods)
+[19:32:02] [93m[COOLDOWN] ⏳[0m            Current:  36.6 RPS | Predicted: 32.7 RPS | Cooling down 22/30s (Holding 2 pods)
+[19:32:05] [93m[COOLDOWN] ⏳[0m            Current:  82.9 RPS | Predicted: 38.1 RPS | Cooling down 25/30s (Holding 2 pods)
+[19:32:08] [93m[COOLDOWN] ⏳[0m            Current: 139.1 RPS | Predicted: 40.9 RPS | Cooling down 28/30s (Holding 2 pods)
+[19:32:12] [92m[1m[CONSERVATIVE SCALE-DOWN] 📉[0m Current: 170.4 RPS | CDT Expired (31s) | Shedding 1 surplus pods: 2 -> 1
+[19:32:15] [91m[1m[PROACTIVE SCALE-UP] 🚀[0m Current: 201.4 RPS | Predicted: 50.3 RPS | Scaling 1 -> 2 pods ahead of burst
+[19:32:18] [92m[BALANCED] 🟢[0m            Current: 229.5 RPS | Predicted: 60.6 RPS matches 2 pod(s) capacity
+[19:32:21] [92m[BALANCED] 🟢[0m            Current: 259.5 RPS | Predicted: 73.9 RPS matches 2 pod(s) capacity
+[19:32:24] [92m[BALANCED] 🟢[0m            Current: 288.7 RPS | Predicted: 91.8 RPS matches 2 pod(s) capacity
+[19:32:28] [91m[1m[PROACTIVE SCALE-UP] 🚀[0m Current: 297.6 RPS | Predicted: 109.3 RPS | Scaling 2 -> 3 pods ahead of burst
+[19:32:31] [92m[BALANCED] 🟢[0m            Current: 282.6 RPS | Predicted: 124.5 RPS matches 3 pod(s) capacity
+[19:32:34] [92m[BALANCED] 🟢[0m            Current: 254.7 RPS | Predicted: 137.2 RPS matches 3 pod(s) capacity
+[19:32:37] [92m[BALANCED] 🟢[0m            Current: 227.9 RPS | Predicted: 148.1 RPS matches 3 pod(s) capacity
+
+[1m[96mAI Predictive Autoscaler shut down by user. Exiting gracefully.[0m

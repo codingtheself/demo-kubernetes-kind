@@ -37,6 +37,14 @@ const profiles = {
     { duration: "15s", target: 9 },
     { duration: "25s", target: 2 },
   ],
+  // 4. Quick Burst (Fast 55s test: 15s baseline -> 5s surge -> 20s sustained -> 5s drop -> 10s cooldown)
+  quickburst: [
+    { duration: "15s", target: 2 },
+    { duration: "5s", target: 8 },
+    { duration: "20s", target: 8 },
+    { duration: "5s", target: 2 },
+    { duration: "10s", target: 2 },
+  ],
 };
 
 export const options = {
@@ -69,7 +77,7 @@ export default function () {
 
   if (isSuccess) {
     fibComputations.add(1);
-    fibLatency.observe(duration);
+    fibLatency.add(duration);
     slaViolations.add(duration > SLA_THRESHOLD_MS ? 1 : 0);
     errors.add(0);
   } else {
@@ -103,8 +111,8 @@ export function handleSummary(data) {
     `  HTTP Error Rate          : ${errorRate} %\n` +
     `===================================================================\n`;
 
-  return {
-    stdout: stdout,
-    "loadtest/benchmark_summary.json": JSON.stringify(data, null, 2),
-  };
+  const outputFile = __ENV.OUTPUT_FILE || "loadtest/benchmark_summary.json";
+  const outputObj = { stdout: stdout };
+  outputObj[outputFile] = JSON.stringify(data, null, 2);
+  return outputObj;
 }

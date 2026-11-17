@@ -1,0 +1,38 @@
+
+[1m[96m===================================================================[0m
+[1m[96m    AI-DRIVEN PREDICTIVE AUTOSCALER (Plug-and-Play Controller)     [0m
+[1m[96m===================================================================[0m
+  Target Deployment   : [1mfibserver[0m
+  AI Model Type       : [1mBILSTM[0m
+  AI Model Weights    : [1mmodels/bilstm_workload_model.pt[0m
+  Pod Capacity (C_pod): [1m50.0 req/s per replica[0m
+  Replica Bounds      : [1m[1 .. 8][0m
+  Cooldown Time (CDT) : [1m30 seconds[0m
+  Resource Removal RR : [1m50% gradual decay[0m
+  Control Interval    : [1m3s[0m
+[96m===================================================================[0m
+
+[92m✓ [BILSTM] model successfully loaded onto CPU inference engine.[0m
+
+[19:30:21] [92m[BALANCED] 🟢[0m            Current:  43.6 RPS | Predicted: 43.5 RPS matches 1 pod(s) capacity
+[19:30:25] [92m[BALANCED] 🟢[0m            Current:  30.4 RPS | Predicted: 33.5 RPS matches 1 pod(s) capacity
+[19:30:28] [92m[BALANCED] 🟢[0m            Current:  20.6 RPS | Predicted: 28.0 RPS matches 1 pod(s) capacity
+[19:30:31] [92m[BALANCED] 🟢[0m            Current:  15.4 RPS | Predicted: 25.8 RPS matches 1 pod(s) capacity
+[19:30:34] [92m[BALANCED] 🟢[0m            Current:  10.6 RPS | Predicted: 24.1 RPS matches 1 pod(s) capacity
+[19:30:37] [92m[BALANCED] 🟢[0m            Current:  15.3 RPS | Predicted: 25.9 RPS matches 1 pod(s) capacity
+[19:30:40] [92m[BALANCED] 🟢[0m            Current:  20.1 RPS | Predicted: 27.6 RPS matches 1 pod(s) capacity
+[19:30:44] [92m[BALANCED] 🟢[0m            Current:  24.9 RPS | Predicted: 29.0 RPS matches 1 pod(s) capacity
+[19:30:47] [92m[BALANCED] 🟢[0m            Current:  38.9 RPS | Predicted: 32.1 RPS matches 1 pod(s) capacity
+[19:30:50] [92m[BALANCED] 🟢[0m            Current:  68.0 RPS | Predicted: 36.8 RPS matches 1 pod(s) capacity
+[19:30:53] [92m[BALANCED] 🟢[0m            Current: 104.4 RPS | Predicted: 40.5 RPS matches 1 pod(s) capacity
+[19:30:56] [92m[BALANCED] 🟢[0m            Current: 140.7 RPS | Predicted: 39.9 RPS matches 1 pod(s) capacity
+[19:30:59] [92m[BALANCED] 🟢[0m            Current: 203.4 RPS | Predicted: 48.4 RPS matches 1 pod(s) capacity
+[19:31:03] [91m[1m[PROACTIVE SCALE-UP] 🚀[0m Current: 231.9 RPS | Predicted: 62.3 RPS | Scaling 1 -> 2 pods ahead of burst
+[19:31:06] [92m[BALANCED] 🟢[0m            Current: 255.1 RPS | Predicted: 79.9 RPS matches 2 pod(s) capacity
+[19:31:09] [91m[1m[PROACTIVE SCALE-UP] 🚀[0m Current: 276.9 RPS | Predicted: 103.5 RPS | Scaling 2 -> 3 pods ahead of burst
+[19:31:13] [92m[BALANCED] 🟢[0m            Current: 282.0 RPS | Predicted: 126.3 RPS matches 3 pod(s) capacity
+[19:31:16] [92m[BALANCED] 🟢[0m            Current: 261.1 RPS | Predicted: 139.2 RPS matches 3 pod(s) capacity
+[19:31:19] [92m[BALANCED] 🟢[0m            Current: 233.8 RPS | Predicted: 145.2 RPS matches 3 pod(s) capacity
+[19:31:22] [92m[BALANCED] 🟢[0m            Current: 206.7 RPS | Predicted: 147.8 RPS matches 3 pod(s) capacity
+
+[1m[96mAI Predictive Autoscaler shut down by user. Exiting gracefully.[0m

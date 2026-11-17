@@ -134,9 +134,9 @@ def scale_deployment(deployment_name: str, replicas: int, namespace: str = "defa
         return False
 
 
-def get_prometheus_rps(prom_url: str) -> float:
+def get_prometheus_rps(prom_url: str, query_window: str = "15s") -> float:
     """Fetch current instantaneous RPS from Prometheus."""
-    promql = "sum(rate(http_requests_total[30s]))"
+    promql = f"sum(rate(http_requests_total[{query_window}]))"
     query_url = f"{prom_url.rstrip('/')}/api/v1/query?query={urllib.parse.quote(promql)}"
 
     # 1. Direct HTTP
@@ -258,6 +258,18 @@ def main():
         default="http://localhost:9090",
         help="Prometheus Base URL"
     )
+    parser.add_argument(
+        "--query-window",
+        type=str,
+        default="30s",
+        help="Prometheus rate query time window (e.g. 15s, 30s) (default: 30s)"
+    )
+    parser.add_argument(
+        "--telemetry-file",
+        type=str,
+        default=None,
+        help="Optional path to write live decision telemetry in JSONL format"
+    )
 
     args = parser.parse_args()
 
@@ -298,8 +310,9 @@ def main():
 
     try:
         while True:
+            t_epoch = time.time()
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            current_rps = get_prometheus_rps(args.prom_url)
+            current_rps = get_prometheus_rps(args.prom_url, args.query_window)
             current_replicas = get_current_replicas(args.target, args.namespace)
 
             # --- ANALYZE: Model Forecast ---
@@ -355,6 +368,23 @@ def main():
 
             # Formatted log line
             print(f"[{timestamp}] {action_tag:<32} Current: {current_rps:>5.1f} RPS | {detail}", flush=True)
+
+            if args.telemetry_file:
+                record = {
+                    "timestamp": t_epoch,
+                    "time_str": timestamp,
+                    "current_rps": current_rps,
+                    "predicted_rps": predicted_rps,
+                    "target_replicas": target_replicas,
+                    "current_replicas": current_replicas,
+                    "desired_replicas": desired_replicas,
+                }
+                try:
+                    with open(args.telemetry_file, "a") as tf:
+                        tf.write(json.dumps(record) + "\n")
+                except Exception:
+                    pass
+
             time.sleep(args.interval)
 
     except KeyboardInterrupt:

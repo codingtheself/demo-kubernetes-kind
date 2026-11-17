@@ -1,0 +1,17 @@
+{
+  "model": "random_forest",
+  "profile": "quickburst",
+  "total_requests": 9735,
+  "throughput_rps": 176.9,
+  "avg_latency_ms": 3.99,
+  "med_latency_ms": 2.22,
+  "p90_latency_ms": 8.73,
+  "p95_latency_ms": 12.99,
+  "max_latency_ms": 83.42,
+  "sla_violations_pct": 0.0,
+  "error_rate_pct": 0.0,
+  "avg_replicas": 2.2,
+  "peak_replicas": 3,
+  "pod_seconds": 99.0,
+  "reaction_time_s": 0.0
+}

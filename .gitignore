@@ -11,3 +11,4 @@ data/alibaba_raw/
 *.tar.gz
 *.gz
 *.zip
+loadtest/benchmark_summary.json
