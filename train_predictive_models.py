@@ -21,6 +21,14 @@ Usage:
 
 import os
 import sys
+
+# Auto re-exec into local virtualenv if dependencies are not in current environment
+VENV_PYTHON = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".venv", "bin", "python")
+if os.path.exists(VENV_PYTHON) and sys.executable != VENV_PYTHON:
+    try:
+        import numpy  # noqa: F401
+    except ImportError:
+        os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
 import time
 import json
 import pickle

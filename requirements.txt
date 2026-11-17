@@ -1,0 +1,10 @@
+# Core Machine Learning & Deep Learning Frameworks
+torch>=2.1.0
+scikit-learn>=1.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Visualization & Telemetry
+matplotlib>=3.7.0
+requests>=2.30.0
