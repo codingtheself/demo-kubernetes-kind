@@ -1,0 +1,8 @@
+Rank,Model Name,Model Key,MAE (RPS),RMSE (RPS),MAPE (%),Inference Latency (ms),Parameters,Training Time (s),Artifact File
+1,Bi-LSTM,bilstm,5.58,9.83,8.12,1.07,137793,208.49,bilstm_workload_model.pt
+2,Random Forest,random_forest,5.5,9.72,8.14,12.51,21612,3.94,random_forest_workload_model.pkl
+3,Ridge Regression,ridge,5.55,9.8,8.14,0.09,13,0.01,ridge_workload_model.pkl
+4,Standard LSTM,lstm,5.59,9.81,8.24,0.69,52545,93.78,lstm_workload_model.pt
+5,GRU,gru,5.6,9.76,8.39,0.85,39937,114.88,gru_workload_model.pt
+6,MLP,mlp,5.62,9.72,8.46,0.12,2945,8.6,mlp_workload_model.pt
+7,Transformer,transformer,5.61,9.74,8.5,0.56,9697,27.97,transformer_workload_model.pt

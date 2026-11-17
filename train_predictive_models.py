@@ -14,9 +14,13 @@ Supported Models via model_zoo:
   - ridge:         L2-Regularized Linear Regression
   - random_forest: Ensemble of Decision Trees
 
-Usage:
-  python3 train_predictive_models.py --models all --epochs 15
-  python3 train_predictive_models.py --models bilstm,gru,ridge --epochs 10
+Outputs:
+  - models/<key>_workload_model.[pt|pkl]: Serialized model checkpoints
+  - models/benchmark_results.json: Raw dictionary of benchmark results
+  - models/benchmark_leaderboard.csv: Tabular CSV format for Excel/Sheets/Pandas
+  - models/benchmark_leaderboard.md: Formatted Markdown table for reports/papers
+  - models/model_comparison.png: Time-series curve comparison plot
+  - models/model_performance_bars.png: Multi-panel performance bar graphs
 """
 
 import os
@@ -29,11 +33,13 @@ if os.path.exists(VENV_PYTHON) and sys.executable != VENV_PYTHON:
         import numpy  # noqa: F401
     except ImportError:
         os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
+
 import time
 import json
 import pickle
 import argparse
 import numpy as np
+import pandas as pd
 
 # Ensure root dir is in python path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -50,7 +56,6 @@ from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 
 def benchmark_inference_speed(model, sample_window: np.ndarray, runs: int = 200) -> float:
     """Measures single-step inference latency in milliseconds."""
-    # Warm-up passes
     for _ in range(20):
         _ = model.predict_step(sample_window)
 
@@ -73,7 +78,8 @@ def main():
     )
     parser.add_argument("--datadir", type=str, default="data", help="Directory containing train_data.npz, val_data.npz, test_data.npz")
     parser.add_argument("--modeldir", type=str, default="models", help="Directory to save model weights and benchmarks")
-    parser.add_argument("--epochs", type=int, default=15, help="Training epochs for neural models (default: 15)")
+    parser.add_argument("--epochs", type=int, default=25, help="Training epochs for neural models (default: 25)")
+    parser.add_argument("--patience", type=int, default=7, help="Early stopping patience epochs on validation loss (default: 7)")
     parser.add_argument("--batch-size", type=int, default=128, help="Batch size (default: 128)")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate (default: 0.001)")
     args = parser.parse_args()
@@ -95,7 +101,7 @@ def main():
     print(f"       PLUG-AND-PLAY WORKLOAD MODEL BENCHMARKING ENGINE")
     print(f"===================================================================")
     print(f"  Target Models   : {', '.join(selected_models)}")
-    print(f"  Training Epochs : {args.epochs}")
+    print(f"  Training Epochs : {args.epochs} (with Early Stopping patience={args.patience})")
     print(f"  Batch Size      : {args.batch_size}")
     print(f"  Learning Rate   : {args.lr}")
     print(f"  Data Directory  : {args.datadir}")
@@ -103,7 +109,7 @@ def main():
     print(f"===================================================================\n")
 
     # 2. Load datasets and scaler
-    print(f"[1/4] Loading preprocessed datasets and fitted scaler...")
+    print(f"[1/5] Loading preprocessed datasets and fitted scaler...")
     train_data = np.load(os.path.join(args.datadir, "train_data.npz"))
     val_data = np.load(os.path.join(args.datadir, "val_data.npz"))
     test_data = np.load(os.path.join(args.datadir, "test_data.npz"))
@@ -127,7 +133,7 @@ def main():
     results = {}
     test_predictions = {}
 
-    print(f"\n[2/4] Training and evaluating selected model architectures...")
+    print(f"\n[2/5] Training and evaluating selected model architectures...")
     for idx, model_key in enumerate(selected_models, 1):
         print(f"\n  ({idx}/{len(selected_models)}) Initializing '{model_key}'...")
         model = get_model(model_key, lookback=X_train.shape[1])
@@ -140,6 +146,7 @@ def main():
             X_val=X_val,
             y_val=y_val,
             epochs=args.epochs,
+            patience=args.patience,
             batch_size=args.batch_size,
             lr=args.lr,
             verbose=True
@@ -176,35 +183,71 @@ def main():
         print(f"      ✓ Completed {model.name} -> MAE: {mae:.2f} RPS | MAPE: {mape:.2f}% | Latency: {inf_latency:.2f}ms | Saved: {save_filename}")
 
     # 4. Save results JSON
-    benchmark_path = os.path.join(args.modeldir, "benchmark_results.json")
-    with open(benchmark_path, "w") as f:
+    benchmark_json_path = os.path.join(args.modeldir, "benchmark_results.json")
+    with open(benchmark_json_path, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\n[3/4] Saved benchmark results to {benchmark_path}")
 
-    # 5. Print Leaderboard
-    print(f"\n[4/4] Quantitative Leaderboard (Sorted by MAPE):")
+    # 5. Save Leaderboard in Table Formats (CSV & Markdown)
+    sorted_results = sorted(results.items(), key=lambda item: item[1]["MAPE (%)"])
+    table_rows = []
+    for rank, (name, m) in enumerate(sorted_results, 1):
+        table_rows.append({
+            "Rank": rank,
+            "Model Name": name,
+            "Model Key": m["Model Key"],
+            "MAE (RPS)": m["MAE (RPS)"],
+            "RMSE (RPS)": m["RMSE (RPS)"],
+            "MAPE (%)": m["MAPE (%)"],
+            "Inference Latency (ms)": m["Inference Latency (ms)"],
+            "Parameters": m["Parameters"],
+            "Training Time (s)": m["Training Time (s)"],
+            "Artifact File": m["Artifact"]
+        })
+
+    df_leaderboard = pd.DataFrame(table_rows)
+
+    # Save CSV
+    csv_path = os.path.join(args.modeldir, "benchmark_leaderboard.csv")
+    df_leaderboard.to_csv(csv_path, index=False)
+
+    # Save Markdown Table
+    md_path = os.path.join(args.modeldir, "benchmark_leaderboard.md")
+    with open(md_path, "w") as f:
+        f.write("# Predictive Autoscaling AI Models — Benchmark Leaderboard\n\n")
+        f.write("*Evaluated on Alibaba Cloud Microservices Workload Trace*\n\n")
+        f.write("| Rank | Model Name | MAE (RPS) | RMSE (RPS) | MAPE (%) | Latency (ms) | Parameters | Training Time (s) | Artifact File |\n")
+        f.write("|:---:|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---|\n")
+        for r in table_rows:
+            star = " ◄" if "Bi-LSTM" in r["Model Name"] else ""
+            f.write(f"| {r['Rank']} | **{r['Model Name']}{star}** | {r['MAE (RPS)']:.2f} | {r['RMSE (RPS)']:.2f} | {r['MAPE (%)']:.2f}% | {r['Inference Latency (ms)']:.2f} | {r['Parameters']:,} | {r['Training Time (s)']:.2f}s | `{r['Artifact File']}` |\n")
+
+    print(f"\n[3/5] Saved benchmark tables:")
+    print(f"      • JSON : {benchmark_json_path}")
+    print(f"      • CSV  : {csv_path}")
+    print(f"      • MD   : {md_path}")
+
+    # 6. Print Leaderboard in Terminal
+    print(f"\n[4/5] Quantitative Leaderboard (Sorted by MAPE):")
     print("=" * 100)
-    header = f"{'Model Name':<24} | {'MAE (RPS)':<10} | {'RMSE (RPS)':<10} | {'MAPE (%)':<10} | {'Latency (ms)':<12} | {'Params':<8} | {'Train (s)':<9}"
+    header = f"{'Rank':<5} | {'Model Name':<22} | {'MAE (RPS)':<10} | {'RMSE (RPS)':<10} | {'MAPE (%)':<10} | {'Latency (ms)':<12} | {'Params':<8} | {'Train (s)':<9}"
     print(header)
     print("-" * 100)
-
-    sorted_results = sorted(results.items(), key=lambda item: item[1]["MAPE (%)"])
-    for name, m in sorted_results:
-        star = " ◄" if "Bi-LSTM" in name else ""
-        row = (f"{name:<24} | {m['MAE (RPS)']:<10.2f} | {m['RMSE (RPS)']:<10.2f} | "
-               f"{m['MAPE (%)']:<10.2f} | {m['Inference Latency (ms)']:<12.2f} | "
-               f"{m['Parameters']:<8} | {m['Training Time (s)']:<9.2f}{star}")
+    for r in table_rows:
+        star = " ◄" if "Bi-LSTM" in r["Model Name"] else ""
+        row = (f"{r['Rank']:<5} | {r['Model Name']:<22} | {r['MAE (RPS)']:<10.2f} | {r['RMSE (RPS)']:<10.2f} | "
+               f"{r['MAPE (%)']:<10.2f} | {r['Inference Latency (ms)']:<12.2f} | "
+               f"{r['Parameters']:<8} | {r['Training Time (s)']:<9.2f}{star}")
         print(row)
     print("=" * 100)
 
-    # 6. Generate Multi-Model Comparison Plot
+    # 7. Generate Multi-Model Comparison Plot & Bar Charts
+    print(f"\n[5/5] Generating graphical comparison plots...")
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
         plt.figure(figsize=(14, 7))
-        # Plot 200 consecutive test intervals (100 minutes)
         window_slice = slice(100, 300)
         time_axis = np.arange(200) * 0.5  # in minutes
 
@@ -227,9 +270,23 @@ def main():
 
         plot_path = os.path.join(args.modeldir, "model_comparison.png")
         plt.savefig(plot_path, dpi=200)
-        print(f"\n✓ Generated comprehensive comparison plot -> {plot_path}\n")
+        plt.close()
+        print(f"      ✓ Curve plot saved -> {plot_path}")
     except Exception as e:
-        print(f"[WARN] Could not generate comparison plot: {e}")
+        print(f"      [WARN] Could not generate comparison plot: {e}")
+
+    # Also automatically update the bar charts
+    try:
+        from plot_model_benchmarks import generate_graphical_comparisons
+        generate_graphical_comparisons(
+            benchmark_json=benchmark_json_path,
+            simulation_json=os.path.join(args.modeldir, "simulation_results.json"),
+            output_dir=args.modeldir
+        )
+    except Exception as e:
+        print(f"      [WARN] Could not update bar graphs: {e}")
+
+    print("\n✓ Training, benchmarking, table generation, and plotting complete!\n")
 
 
 if __name__ == "__main__":

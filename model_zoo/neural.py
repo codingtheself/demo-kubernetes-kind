@@ -218,6 +218,8 @@ class PyTorchWorkloadModel(BaseWorkloadModel):
         best_val_loss = float("inf")
         best_state = None
         history = {"train_loss": [], "val_loss": []}
+        patience = kwargs.get("patience", 7)
+        patience_counter = 0
 
         for epoch in range(1, epochs + 1):
             self.net.train()
@@ -244,13 +246,21 @@ class PyTorchWorkloadModel(BaseWorkloadModel):
                 val_loss /= len(val_loader.dataset)
                 history["val_loss"].append(val_loss)
 
-                if val_loss < best_val_loss:
+                if val_loss < best_val_loss - 1e-6:
                     best_val_loss = val_loss
                     best_state = {k: v.cpu().clone() for k, v in self.net.state_dict().items()}
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
 
             if verbose and (epoch % 5 == 0 or epoch == epochs):
                 v_str = f" | Val MSE: {val_loss:.6f}" if val_loss is not None else ""
                 print(f"      [{self.name}] Epoch {epoch:02d}/{epochs:02d} | Train MSE: {train_loss:.6f}{v_str}")
+
+            if val_loader is not None and patience_counter >= patience:
+                if verbose:
+                    print(f"      [{self.name}] Early stopping at epoch {epoch:02d} (patience={patience} reached). Restoring best weights (Val MSE: {best_val_loss:.6f}).")
+                break
 
         if best_state is not None:
             self.net.load_state_dict(best_state)

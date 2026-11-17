@@ -197,7 +197,40 @@ def main():
     out_json = os.path.join(args.modeldir, "simulation_results.json")
     with open(out_json, "w") as f:
         json.dump(sim_results, f, indent=2)
-    print(f"\n✓ Saved simulation audit to {out_json}\n")
+
+    # Save CSV and Markdown tables
+    try:
+        import pandas as pd
+        sim_rows = []
+        for policy, m in sim_results.items():
+            sim_rows.append({
+                "Policy / Model": policy,
+                "SLA Violation Rate (%)": m["SLA Violation Rate (%)"],
+                "Max Traffic Deficit (RPS)": m["Max Traffic Deficit (RPS)"],
+                "Average Replicas": m["Average Replicas"],
+                "Capacity Waste (%)": m["Capacity Waste (%)"],
+                "Total Pod-Hours": m["Total Pod-Hours"]
+            })
+        df_sim = pd.DataFrame(sim_rows)
+        out_csv = os.path.join(args.modeldir, "simulation_results.csv")
+        df_sim.to_csv(out_csv, index=False)
+
+        out_md = os.path.join(args.modeldir, "simulation_results.md")
+        with open(out_md, "w") as f:
+            f.write("# Kubernetes Cluster Simulation & SLA Audit Leaderboard\n\n")
+            f.write("*Simulated over 6,047 test intervals (~50 hours) on Alibaba Cloud Microservices Workload*\n\n")
+            f.write("| Policy / Model | SLA Violations (%) | Max Deficit (RPS) | Average Replicas | Capacity Waste (%) | Total Pod-Hours |\n")
+            f.write("|:---|:---:|:---:|:---:|:---:|:---:|\n")
+            for r in sim_rows:
+                bold = "**" if "Bi-LSTM" in r["Policy / Model"] else ""
+                f.write(f"| {bold}{r['Policy / Model']}{bold} | {r['SLA Violation Rate (%)']:.2f}% | {r['Max Traffic Deficit (RPS)']:.1f} RPS | {r['Average Replicas']:.2f} | {r['Capacity Waste (%)']:.2f}% | {r['Total Pod-Hours']:.2f} |\n")
+
+        print(f"\n✓ Saved simulation audit tables:")
+        print(f"      • JSON : {out_json}")
+        print(f"      • CSV  : {out_csv}")
+        print(f"      • MD   : {out_md}\n")
+    except Exception as e:
+        print(f"✓ Saved simulation audit to {out_json} (table export warning: {e})\n")
 
 
 if __name__ == "__main__":
