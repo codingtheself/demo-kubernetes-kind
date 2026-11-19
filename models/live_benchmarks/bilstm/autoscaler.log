@@ -14,25 +14,24 @@
 
 [92m✓ [BILSTM] model successfully loaded onto CPU inference engine.[0m
 
-[19:30:21] [92m[BALANCED] 🟢[0m            Current:  43.6 RPS | Predicted: 43.5 RPS matches 1 pod(s) capacity
-[19:30:25] [92m[BALANCED] 🟢[0m            Current:  30.4 RPS | Predicted: 33.5 RPS matches 1 pod(s) capacity
-[19:30:28] [92m[BALANCED] 🟢[0m            Current:  20.6 RPS | Predicted: 28.0 RPS matches 1 pod(s) capacity
-[19:30:31] [92m[BALANCED] 🟢[0m            Current:  15.4 RPS | Predicted: 25.8 RPS matches 1 pod(s) capacity
-[19:30:34] [92m[BALANCED] 🟢[0m            Current:  10.6 RPS | Predicted: 24.1 RPS matches 1 pod(s) capacity
-[19:30:37] [92m[BALANCED] 🟢[0m            Current:  15.3 RPS | Predicted: 25.9 RPS matches 1 pod(s) capacity
-[19:30:40] [92m[BALANCED] 🟢[0m            Current:  20.1 RPS | Predicted: 27.6 RPS matches 1 pod(s) capacity
-[19:30:44] [92m[BALANCED] 🟢[0m            Current:  24.9 RPS | Predicted: 29.0 RPS matches 1 pod(s) capacity
-[19:30:47] [92m[BALANCED] 🟢[0m            Current:  38.9 RPS | Predicted: 32.1 RPS matches 1 pod(s) capacity
-[19:30:50] [92m[BALANCED] 🟢[0m            Current:  68.0 RPS | Predicted: 36.8 RPS matches 1 pod(s) capacity
-[19:30:53] [92m[BALANCED] 🟢[0m            Current: 104.4 RPS | Predicted: 40.5 RPS matches 1 pod(s) capacity
-[19:30:56] [92m[BALANCED] 🟢[0m            Current: 140.7 RPS | Predicted: 39.9 RPS matches 1 pod(s) capacity
-[19:30:59] [92m[BALANCED] 🟢[0m            Current: 203.4 RPS | Predicted: 48.4 RPS matches 1 pod(s) capacity
-[19:31:03] [91m[1m[PROACTIVE SCALE-UP] 🚀[0m Current: 231.9 RPS | Predicted: 62.3 RPS | Scaling 1 -> 2 pods ahead of burst
-[19:31:06] [92m[BALANCED] 🟢[0m            Current: 255.1 RPS | Predicted: 79.9 RPS matches 2 pod(s) capacity
-[19:31:09] [91m[1m[PROACTIVE SCALE-UP] 🚀[0m Current: 276.9 RPS | Predicted: 103.5 RPS | Scaling 2 -> 3 pods ahead of burst
-[19:31:13] [92m[BALANCED] 🟢[0m            Current: 282.0 RPS | Predicted: 126.3 RPS matches 3 pod(s) capacity
-[19:31:16] [92m[BALANCED] 🟢[0m            Current: 261.1 RPS | Predicted: 139.2 RPS matches 3 pod(s) capacity
-[19:31:19] [92m[BALANCED] 🟢[0m            Current: 233.8 RPS | Predicted: 145.2 RPS matches 3 pod(s) capacity
-[19:31:22] [92m[BALANCED] 🟢[0m            Current: 206.7 RPS | Predicted: 147.8 RPS matches 3 pod(s) capacity
+[20:46:31] [91m[1m[PROACTIVE SCALE-UP] 🚀[0m Current: 394.4 RPS | Predicted: 159.8 RPS | Scaling 1 -> 4 pods ahead of burst
+[20:46:34] [92m[BALANCED] 🟢[0m            Current: 368.0 RPS | Predicted: 159.2 RPS matches 4 pod(s) capacity
+[20:46:38] [92m[BALANCED] 🟢[0m            Current: 329.4 RPS | Predicted: 158.1 RPS matches 4 pod(s) capacity
+[20:46:42] [92m[BALANCED] 🟢[0m            Current: 278.0 RPS | Predicted: 156.5 RPS matches 4 pod(s) capacity
+[20:46:45] [92m[BALANCED] 🟢[0m            Current: 264.1 RPS | Predicted: 155.9 RPS matches 4 pod(s) capacity
+[20:46:48] [92m[BALANCED] 🟢[0m            Current: 240.8 RPS | Predicted: 154.9 RPS matches 4 pod(s) capacity
+[20:46:51] [92m[BALANCED] 🟢[0m            Current: 211.5 RPS | Predicted: 153.6 RPS matches 4 pod(s) capacity
+[20:46:54] [92m[BALANCED] 🟢[0m            Current: 193.1 RPS | Predicted: 152.4 RPS matches 4 pod(s) capacity
+[20:46:57] [92m[BALANCED] 🟢[0m            Current: 210.9 RPS | Predicted: 152.4 RPS matches 4 pod(s) capacity
+[20:47:01] [92m[BALANCED] 🟢[0m            Current: 231.9 RPS | Predicted: 152.6 RPS matches 4 pod(s) capacity
+[20:47:04] [92m[BALANCED] 🟢[0m            Current: 262.7 RPS | Predicted: 153.2 RPS matches 4 pod(s) capacity
+[20:47:07] [92m[BALANCED] 🟢[0m            Current: 285.4 RPS | Predicted: 153.7 RPS matches 4 pod(s) capacity
+[20:47:10] [92m[BALANCED] 🟢[0m            Current: 301.5 RPS | Predicted: 154.1 RPS matches 4 pod(s) capacity
+[20:47:13] [92m[BALANCED] 🟢[0m            Current: 319.6 RPS | Predicted: 154.6 RPS matches 4 pod(s) capacity
+[20:47:17] [92m[BALANCED] 🟢[0m            Current: 342.7 RPS | Predicted: 155.2 RPS matches 4 pod(s) capacity
+[20:47:20] [92m[BALANCED] 🟢[0m            Current: 364.9 RPS | Predicted: 156.0 RPS matches 4 pod(s) capacity
+[20:47:23] [92m[BALANCED] 🟢[0m            Current: 360.7 RPS | Predicted: 156.6 RPS matches 4 pod(s) capacity
+[20:47:26] [92m[BALANCED] 🟢[0m            Current: 339.2 RPS | Predicted: 156.8 RPS matches 4 pod(s) capacity
+[20:47:29] [92m[BALANCED] 🟢[0m            Current: 312.9 RPS | Predicted: 156.9 RPS matches 4 pod(s) capacity
 
 [1m[96mAI Predictive Autoscaler shut down by user. Exiting gracefully.[0m

@@ -1,17 +1,17 @@
 {
   "model": "ridge",
   "profile": "quickburst",
-  "total_requests": 9749,
-  "throughput_rps": 177.2,
-  "avg_latency_ms": 3.99,
-  "med_latency_ms": 2.05,
-  "p90_latency_ms": 8.64,
-  "p95_latency_ms": 13.57,
-  "max_latency_ms": 101.62,
+  "total_requests": 10242,
+  "throughput_rps": 186.2,
+  "avg_latency_ms": 2.91,
+  "med_latency_ms": 1.63,
+  "p90_latency_ms": 5.64,
+  "p95_latency_ms": 8.96,
+  "max_latency_ms": 85.74,
   "sla_violations_pct": 0.0,
   "error_rate_pct": 0.0,
-  "avg_replicas": 2.32,
+  "avg_replicas": 1.79,
   "peak_replicas": 4,
-  "pod_seconds": 102.0,
-  "reaction_time_s": 0.0
+  "pod_seconds": 84.0,
+  "reaction_time_s": 11.2
 }
